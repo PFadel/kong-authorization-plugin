@@ -14,7 +14,7 @@ dependencies = {
 build = {
    type = "builtin",
    modules = {
-    ["kong.plugins.kong-middleware-plugin.handler"] = "./handler.lua",
-    ["kong.plugins.kong-middleware-plugin.schema"] = "./schema.lua"
+    ["kong.plugins.kong-authorization-plugin.handler"] = "./handler.lua",
+    ["kong.plugins.kong-authorization-plugin.schema"] = "./schema.lua"
    }
 }
