@@ -7,23 +7,22 @@ local MiddlewareHandler = BasePlugin:extend()
 MiddlewareHandler.PRIORITY = 1006
 
 function MiddlewareHandler:new()
-  MiddlewareHandler.super.new(self, "middleware-gim")
+  MiddlewareHandler.super.new(self, "kong-authorization-plugin")
 end
 
 function MiddlewareHandler:access(config)
   MiddlewareHandler.super.access(self)
 
   local httpc = http:new()
-  ngx.log(ngx.NOTICE, "Setting headers")
-  local headers = ngx.req.get_headers()
-  ngx.req.clear_header('Host')
+  local headers = {}
+  local req_headers = ngx.req.get_headers()
+
   headers['Content-Type'] = "application/json"
-  headers["authorization"] = string.format("Bearer %s", config.apiKey)
+  headers["Authorization"] = string.format("Bearer %s", config.apiKey)
 
   -- Executa o request http
-  ngx.log(ngx.NOTICE, "Executing http request")
-  local url = string.format("%s/api/management/%s/users/%s/roles", config.url, config.appKey, headers["email"])
-  ngx.log(ngx.NOTICE, string.format("URL: %s", url))
+  local url = string.format("%s/api/management/%s/users/%s/roles", config.url, config.appKey, req_headers["email"])
+  ngx.log(ngx.NOTICE, string.format("Executing http request to URL: %s", url))
   local res, err = httpc:request_uri(url, {
     method = "GET",
     ssl_verify = false,
@@ -53,7 +52,7 @@ function MiddlewareHandler:access(config)
   -- Parseia o resultado e avalia o role
   local data = cjson.decode(res.body)
   local permission = false
-  for role in data["roles"] do
+  for i, role in ipairs(data["roles"]) do
     if role["roleName"] == ngx.req.url then
       permission = true
     end
@@ -62,14 +61,23 @@ function MiddlewareHandler:access(config)
   ngx.log(ngx.NOTICE, "Checking for permissions")
   -- Quando não há permissão para a rota
   if not permission then
+    ngx.log(ngx.NOTICE, "Do not have permission")
     ngx.status = ngx.HTTP_UNAUTHORIZED
-    for key, value in pairs(res.headers) do
-      ngx.header[key] = value
-    end
+
+    ngx.log(ngx.NOTICE, "Setting headers")
+    ngx.header["Cache-Control"] = res.headers["Cache-Control"]
+    ngx.header["Pragma"] = res.headers["Pragma"]
+    ngx.header["Date"] = res.headers["Date"]
+    ngx.header["Expires"] = res.headers["Expires"]
+    ngx.header['Content-Type'] = "application/json"
+
+    ngx.log(ngx.NOTICE, "Setting body")
     ngx.say(string.format("{%q: %q}", "message", "You don't have the necessary permissions for this resource"))
 
+    ngx.log(ngx.NOTICE, "Returning.")
     return ngx.exit(ngx.HTTP_UNAUTHORIZED)
   end
+  ngx.log(ngx.NOTICE, "Has permission.")
 end
 
 return MiddlewareHandler
