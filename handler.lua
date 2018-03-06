@@ -1,6 +1,7 @@
 local BasePlugin = require "kong.plugins.base_plugin"
 local http = require 'resty.http'
 local cjson = require "cjson"
+local utils = require "kong.plugins.kong-authorization-plugin.utils"
 
 local MiddlewareHandler = BasePlugin:extend()
 
@@ -16,6 +17,11 @@ function MiddlewareHandler:access(config)
   local httpc = http:new()
   local headers = {}
   local req_headers = ngx.req.get_headers()
+  
+  if not utils.set_config_defaults(config, req_headers) then
+    ngx.status = ngx.HTTP_BAD_REQUEST
+    return ngx.exit(ngx.HTTP_BAD_REQUEST)
+  end
 
   headers['Content-Type'] = "application/json"
   headers["Authorization"] = string.format("Bearer %s", config.apiKey)
@@ -52,8 +58,13 @@ function MiddlewareHandler:access(config)
   -- Parseia o resultado e avalia o role
   local data = cjson.decode(res.body)
   local permission = false
-  for i, role in ipairs(data["roles"]) do
-    if role["roleName"] == ngx.req.url then
+  local expected_permission = ""
+  for i, role in pairs(data["roles"]) do
+
+    expected_permission = string.format("%s_%s_%s", ngx.var.request_method, ngx.var.host, ngx.var.request_uri)
+    ngx.log(ngx.NOTICE, string.format("EXPECTED_PERMISSION: %s", expected_permission))
+
+    if role["roleName"] == expected_permission and role["active"] then
       permission = true
     end
   end
