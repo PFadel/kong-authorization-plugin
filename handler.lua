@@ -58,11 +58,11 @@ function MiddlewareHandler:access(config)
   -- Parseia o resultado e avalia o role
   local data = cjson.decode(res.body)
   local permission = false
-  local expected_permission = ""
-  for i, role in pairs(data["roles"]) do
+  local expected_permission = string.format("%s_%s_%s", ngx.var.request_method, ngx.var.host, ngx.var.request_uri)
+  ngx.log(ngx.NOTICE, string.format("EXPECTED_PERMISSION: %s", expected_permission))
 
-    expected_permission = string.format("%s_%s_%s", ngx.var.request_method, ngx.var.host, ngx.var.request_uri)
-    ngx.log(ngx.NOTICE, string.format("EXPECTED_PERMISSION: %s", expected_permission))
+  for i, role in pairs(data["roles"]) do
+    ngx.log(ngx.NOTICE, string.format("ROLENAME: %s", role["roleName"]))
 
     if role["roleName"] == expected_permission and role["active"] then
       permission = true
